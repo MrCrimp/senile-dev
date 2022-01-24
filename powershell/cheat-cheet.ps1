@@ -12,6 +12,9 @@
 .LINK
     https://helpurl
 #>
+
+iex "& { $(irm https://aka.ms/install-powershell.ps1) } -UseMSI" #Update Powershell to latest verison
+
 Get-Command                                               # Retrieves a list of all the commands available to PowerShell
                                                           # (native binaries in $env:PATH + cmdlets / functions from PowerShell modules)
 Get-Command -Module Microsoft*                            # Retrieves a list of all the PowerShell commands exported from modules named Microsoft*
@@ -27,7 +30,9 @@ Get-Help -Name Get-Command -Parameter Module              # Get help for a speci
 ###################################################
 # Script setup
 ###################################################
-$ErrorActionPreference = "Stop" # SilentlyContinue | Continue (ask to continue) | Inquire (prompt) | Stop (terminate process with error)
+$ErrorActionPreference = "Stop"                           # SilentlyContinue | Continue (ask to continue) | Inquire (prompt) | Stop (terminate process with error)
+$DebugPreference = "SilentlyContinue"                     # SilentlyContinue | Continue
+Write-Debug "Not displayed unless $DebugPreference == Continue"
 
 # The famous git error handling WTF
 $env:GIT_REDIRECT_STDERR = '2>&1'
@@ -78,7 +83,7 @@ $matches[0]                                               # Returns 'Trevor', ba
 
 @('Trevor', 'Billy', 'Bobby') -match '^B'                 # Perform a regular expression match against an array of string values. Returns Billy, Bobby
 
-$regex = [regex]'(\w{3,8})'
+$regex = [regex]'[-a-zA-Z0-9@:%_\+.~#?&//=]{2,256}\.[a-z]{2,4}\b(\/[-a-zA-Z0-9@:%_\+.~#?&//=]*)\ig'
 $regex.Matches('Trevor Bobby Dillon Joe Jacob').Value     # Find multiple matches against a singleton string value.
 
 ###################################################
@@ -89,7 +94,7 @@ $gitHist = (git log --no-merges --format="%ai`t%H`t%an`t%ae`t%s" -n 100) | Conve
 $gitHist | Group-Object -Property Author -NoElement | Sort-Object -Property Count -Descending   # Now you can do iterate over each commit in PowerShell, group sort etc.
 $gitHist | % { if ($_.Author -eq "X K") { "Me" } else { "Someone else" } }                      # Example do something for each commit
 
-if (1 -eq 1) { }                                          # Do something if 1 is equal to 1
+if ( (1 -eq 1) -or (2 -eq 2) ) { }                                          # Do something if 1 is equal to 1
 
 do { 'hi' } while ($false)                                # Loop while a condition is true (always executes at least once)
 
@@ -130,6 +135,39 @@ New-Variable FirstName -Value Trevor -Option ReadOnly     # Create a variable th
 
 Remove-Variable -Name firstname                           # Remove a variable, with the specified name
 Remove-Variable -Name firstname -Force                    # Remove a variable, with the specified name, that has the "ReadOnly" option set
+
+###################################################
+# Collections - since arrays are fixed size..
+###################################################
+
+# Some input data - simplified for example purposes
+$SomeData = @('be', 'me', 'one', 'more', 'time')
+$GenericList1 = [System.Collections.Generic.List[Object]]::new()
+$GenericList2 = [System.Collections.Generic.List[Object]]::new()
+foreach ($Something in $SomeData) {
+    $GenericList1.Add("MyValue $Something")
+    $GenericList2.Add("Other $Something")
+}
+$GenericList1.Count
+$GenericList2.Count
+$GenericList1.Remove('MyValue be')
+$GenericList1.Count
+$GenericList1 -join ','
+
+# Prefer Generic lists instead ^
+$myList = [System.Collections.ArrayList]@();
+$myList.Add('item');
+$myList.Remove('item')
+
+[System.Collections.ArrayList]$Combined3 = @()
+$files | ForEach-Object{
+
+    $obj = [PSCustomObject]@{
+        FileName  = $_.fullname
+        LastWrite = $_.Lastwritetime
+    }
+    $Combined3.Add($obj)|Out-Null
+}
 
 ###################################################
 # Functions
@@ -192,6 +230,7 @@ Unregister-PSRepository -Name $repo                        # Deregister a PowerS
 
 [System.IO.File]::WriteAllText('Also works')
 Add-Content C:\temp\test.txt "`nThis is a new line"         #Append to end of file
+Set-Content "$PSScriptRoot/release-notes.txt" $history      #Replace contents
 
 New-Item -Path c:\test -ItemType Directory                  # Create a directory
 mkdir c:\test2                                              # Create a directory (short-hand)
@@ -274,9 +313,30 @@ gps | where Name -match '^c'                                # Abbreviated form o
 
 
 ###################################################
-# Terminal output formatting
+# Terminal output 
 ###################################################
 
+# Write-Output writes to a return array. 
+Write-Output "`nStatistics of $filename `:"            # To return array from script
+
+# Write-Host writes immediately (and only) to the console,
 Write-Host "This one" -ForegroundColor Green
 ('This is **Bold** text' | ConvertFrom-MarkDown -AsVt100EncodedString).VT100EncodedString
 Write-Host -ForegroundColor White 'This is Bold ' -NoNewline; Write-Host -ForegroundColor red "and this red not"
+
+Clear-Host # Cls | Clear
+Write-Host "================ Title ================"
+Write-Host "1: Press '1' for this option."
+
+###################################################
+# Errors
+
+    try {
+        An error                    # Illegal statement
+    }
+    catch {
+       "An error occurred"
+    }
+
+    $error[0] | fl                   # The latest
+    $error[$error.count-1] | fl      # The first
